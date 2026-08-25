@@ -1,92 +1,45 @@
 #!/bin/bash
 
-echo "=== Ensuring System Dependencies are Installed ==="
+# --- Setup Configuration ---
+COMFYUI_PATH="/workspace/runpod-slim/ComfyUI"
+MODELS_DIR="$COMFYUI_PATH/models"
+REPO_DIR="/tmp/temp_repo"
+
+echo "=== Initializing Setup ==="
 apt-get update && apt-get install -y wget ca-certificates
 
-echo "=== Starting Stable Diffusion 3 Template Setup ==="
-
-# Define the correct ComfyUI path for runpod/comfyui:cuda12.8
-COMFYUI_PATH="/workspace/runpod-slim/ComfyUI"
-
-# Self-healing check prevents directory collisions and fixes broken folders
+# --- Setup ComfyUI Environment ---
 if [ ! -f "$COMFYUI_PATH/main.py" ]; then
-  echo "First time setup: Copying baked ComfyUI to workspace..."
-  rm -rf "$COMFYUI_PATH"
+  echo "Setting up ComfyUI..."
   mkdir -p /workspace/runpod-slim
   cp -r /opt/comfyui-baked "$COMFYUI_PATH"
 fi
 
-# 1. Move custom nodes to the official ComfyUI directory
-echo "Installing custom nodes..."
+# --- Install Nodes ---
+echo "Installing custom nodes and requirements..."
 mkdir -p "$COMFYUI_PATH/custom_nodes"
-if [ -d /tmp/temp_repo/custom_nodes ]; then
-  cp -r /tmp/temp_repo/custom_nodes/* "$COMFYUI_PATH/custom_nodes/"
-fi
-
-# 2. Automatically find and install requirements for your custom nodes
-echo "Installing node requirements..."
+[ -d "$REPO_DIR/custom_nodes" ] && cp -r "$REPO_DIR/custom_nodes"/* "$COMFYUI_PATH/custom_nodes/"
 find "$COMFYUI_PATH/custom_nodes/" -name "requirements.txt" -exec pip install -r {} \;
 
-# 3. Ensure the correct ComfyUI model folders exist for SD3
-echo "Preparing model directories..."
-mkdir -p "$COMFYUI_PATH/models/text_encoders"
-mkdir -p "$COMFYUI_PATH/models/diffusion_models"
-mkdir -p "$COMFYUI_PATH/models/vae"
-mkdir -p "$COMFYUI_PATH/models/loras"
+# --- Download Models ---
+echo "Downloading models..."
+mkdir -p "$MODELS_DIR/text_encoders" "$MODELS_DIR/diffusion_models" "$MODELS_DIR/vae" "$MODELS_DIR/loras"
 
-# 4. Check and download SD3 Text Encoders (CLIP-L & OpenCLIP-G bundled, plus full T5-XXL)
-# Note: T5-XXL FP16 is ~9.5GB and critical for prompt adherence on high-end hardware
-if [ ! -f "$COMFYUI_PATH/models/text_encoders/t5xxl_fp16.safetensors" ]; then
-  echo "Downloading Text Encoder (T5-XXL FP16)..."
-  wget -q --show-progress -O "$COMFYUI_PATH/models/text_encoders/t5xxl_fp16.safetensors" "https://huggingface.co"
-else
-  echo "T5 Text Encoder already exists, skipping."
-fi
+# Define URLs (Ref: https://huggingface.co)
+BASE_URL="https://huggingface.co/resolve/main"
+wget -q --show-progress -nc -P "$MODELS_DIR/text_encoders" "$BASE_URL/text_encoders/t5xxl_fp16.safetensors"
+wget -q --show-progress -nc -P "$MODELS_DIR/text_encoders" "$BASE_URL/text_encoders/clip_l.safetensors"
+wget -q --show-progress -nc -P "$MODELS_DIR/diffusion_models" "$BASE_URL/sd3_medium.safetensors"
+wget -q --show-progress -nc -P "$MODELS_DIR/vae" "$BASE_URL/vae/sd3_vae.safetensors"
 
-if [ ! -f "$COMFYUI_PATH/models/text_encoders/clip_l.safetensors" ]; then
-  echo "Downloading Text Encoder (CLIP-L)..."
-  wget -q --show-progress -O "$COMFYUI_PATH/models/text_encoders/clip_l.safetensors" "https://huggingface.co"
-else
-  echo "CLIP-L Text Encoder already exists, skipping."
-fi
+# --- Setup LoRAs and Cleanup ---
+[ -d "$REPO_DIR/lora" ] && cp "$REPO_DIR/lora"/*.safetensors "$MODELS_DIR/loras/"
+rm -rf "$REPO_DIR"
 
-# 5. Check and download Diffusion Model (SD3 Medium 2B Base MMDiT)
-if [ ! -f "$COMFYUI_PATH/models/diffusion_models/sd3_medium.safetensors" ]; then
-  echo "Downloading SD3 Medium Base Model..."
-  wget -q --show-progress -O "$COMFYUI_PATH/models/diffusion_models/sd3_medium.safetensors" "https://huggingface.co"
-else
-  echo "SD3 Diffusion Model already exists, skipping."
-fi
+# --- Launch Services ---
+echo "Starting Jupyter Lab..."
+pip install -q jupyterlab
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password='' &
 
-# 6. Check and download SD3 Specific VAE
-if [ ! -f "$COMFYUI_PATH/models/vae/sd3_vae.safetensors" ]; then
-  echo "Downloading SD3 VAE..."
-  wget -q --show-progress -O "$COMFYUI_PATH/models/vae/sd3_vae.safetensors" "https://huggingface.co"
-else
-  echo "SD3 VAE already exists, skipping."
-fi
-
-# 7. Install LoRA files from your repo if present
-echo "Installing LoRA files..."
-if [ -d /tmp/temp_repo/lora ]; then
-  for f in /tmp/temp_repo/lora/*.safetensors; do
-    [ -e "$f" ] || continue
-    fname=$(basename "$f")
-    dest="$COMFYUI_PATH/models/loras/$fname"
-    if [ -f "$dest" ]; then
-      echo "LoRA $fname already exists, skipping."
-      continue
-    fi
-    cp "$f" "$dest"
-  done
-else
-  echo "No lora directory found in repo, skipping."
-fi
-
-# 8. Clean up the temporary git folder
-echo "Cleaning up temp files..."
-rm -rf /tmp/temp_repo
-
-# 9. Start ComfyUI using the official RunPod entrypoint
-echo "Setup complete! Handing over to start script..."
+echo "Setup complete! Launching ComfyUI..."
 exec /start.sh
