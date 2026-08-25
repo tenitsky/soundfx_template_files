@@ -8,16 +8,24 @@
 set -Eeuo pipefail
 
 # ------------------------------ configuration --------------------------------
-COMFYUI_PATH="${COMFYUI_PATH:-/workspace/runpod-slim/ComfyUI}"
+# Leave COMFYUI_PATH empty to auto-detect the image's existing ComfyUI.
+# Set it explicitly to override.
+COMFYUI_PATH="${COMFYUI_PATH:-}"
 COMFYUI_SOURCE="${COMFYUI_SOURCE:-/opt/comfyui-baked}"
 WORKFLOW_DIR="${WORKFLOW_DIR:-/workspace/workflows}"
-MODELS_DIR="$COMFYUI_PATH/models"
+# Models always live on the persistent volume, wherever ComfyUI itself lives.
+MODELS_DIR="${MODELS_DIR:-/workspace/models}"
 
 # Optional git repo holding your custom_nodes/ workflows/ lora/ folders.
 # Leave ASSETS_REPO empty to skip. REPO_DIR is also honoured if you pre-mount it.
 ASSETS_REPO="${ASSETS_REPO:-}"
 ASSETS_BRANCH="${ASSETS_BRANCH:-main}"
 REPO_DIR="${REPO_DIR:-/tmp/temp_repo}"
+
+# Custom node git repos, space-separated. Cloned into custom_nodes/ and updated
+# on every boot. Their requirements.txt files are installed automatically.
+CUSTOM_NODE_REPOS="${CUSTOM_NODE_REPOS:-\
+https://github.com/tenitsky/tenitsky-prompt-cycler-simple}"
 
 # Which checkpoints to pull (set to 0 to skip any of them).
 DL_MEDIUM="${DL_MEDIUM:-1}"          # stable_audio_3_medium        (distilled)
@@ -86,23 +94,49 @@ apt-get install -y --no-install-recommends \
   wget curl ca-certificates git git-lfs ffmpeg libsndfile1 libasound2-dev
 update-ca-certificates >/dev/null 2>&1 || true
 
-mkdir -p "$WORKFLOW_DIR" \
-         "$MODELS_DIR/checkpoints" \
-         "$MODELS_DIR/text_encoders" \
-         "$MODELS_DIR/loras" \
-         "$MODELS_DIR/audio_encoders"
+mkdir -p "$WORKFLOW_DIR"
 
 # ------------------------------- ComfyUI --------------------------------------
-if [ ! -f "$COMFYUI_PATH/main.py" ]; then
-  [ -f "$COMFYUI_SOURCE/main.py" ] || die "no baked ComfyUI at $COMFYUI_SOURCE"
-  log "copying ComfyUI from $COMFYUI_SOURCE"
-  mkdir -p "$COMFYUI_PATH"
-  # Trailing /. copies the *contents*, not the folder itself.
-  cp -a "$COMFYUI_SOURCE/." "$COMFYUI_PATH/"
-else
-  log "ComfyUI already installed at $COMFYUI_PATH"
+# Find an existing install before falling back to the baked copy. RunPod's own
+# comfyui images ship ComfyUI already - copying a second one wastes the volume.
+if [ -n "$COMFYUI_PATH" ] && [ -f "$COMFYUI_PATH/main.py" ]; then
+  log "using ComfyUI at $COMFYUI_PATH (explicit)"
+elif [ -z "$COMFYUI_PATH" ]; then
+  for c in /workspace/ComfyUI /workspace/comfyui /workspace/runpod-slim/ComfyUI \
+           /ComfyUI /comfyui /opt/ComfyUI /opt/comfyui /root/ComfyUI; do
+    if [ -f "$c/main.py" ]; then COMFYUI_PATH="$c"; break; fi
+  done
+  if [ -z "$COMFYUI_PATH" ]; then
+    found="$(find / -maxdepth 4 -name main.py -path '*omfy*' \
+             -not -path '*/custom_nodes/*' 2>/dev/null | head -n1 || true)"
+    [ -n "$found" ] && COMFYUI_PATH="$(dirname "$found")"
+  fi
+  [ -n "$COMFYUI_PATH" ] && log "found existing ComfyUI at $COMFYUI_PATH"
 fi
-mkdir -p "$COMFYUI_PATH/custom_nodes"
+
+if [ -z "$COMFYUI_PATH" ]; then
+  COMFYUI_PATH="/workspace/ComfyUI"
+  [ -f "$COMFYUI_SOURCE/main.py" ] \
+    || die "no ComfyUI found on this image and none baked at $COMFYUI_SOURCE"
+  log "no ComfyUI on image - copying from $COMFYUI_SOURCE"
+  mkdir -p "$COMFYUI_PATH"
+  cp -a "$COMFYUI_SOURCE/." "$COMFYUI_PATH/"   # /. copies contents, not the dir
+fi
+mkdir -p "$COMFYUI_PATH/custom_nodes" "$COMFYUI_PATH/models"
+
+# Keep weights on /workspace even when ComfyUI lives in the container fs,
+# otherwise every pod restart re-downloads ~10 GB.
+for sub in checkpoints text_encoders loras vae audio_encoders; do
+  mkdir -p "$MODELS_DIR/$sub"
+  link="$COMFYUI_PATH/models/$sub"
+  if [ -L "$link" ]; then
+    continue
+  elif [ -d "$link" ]; then
+    rmdir "$link" 2>/dev/null || { warn "$link has files - leaving it alone"; continue; }
+  fi
+  ln -s "$MODELS_DIR/$sub" "$link"
+done
+log "models -> $MODELS_DIR (symlinked into $COMFYUI_PATH/models)"
 
 # ---------------------------- repo-supplied assets ----------------------------
 if [ -n "$ASSETS_REPO" ] && [ ! -d "$REPO_DIR/.git" ]; then
@@ -116,6 +150,23 @@ fi
 if [ -d "$REPO_DIR/custom_nodes" ]; then
   log "installing custom nodes"
   cp -a "$REPO_DIR/custom_nodes/." "$COMFYUI_PATH/custom_nodes/"
+fi
+
+# Git-hosted custom nodes. Clone once, fast-forward on later boots. A single
+# unreachable repo must not take the pod down.
+if [ -n "${CUSTOM_NODE_REPOS// /}" ]; then
+  log "syncing git custom nodes"
+  for repo in $CUSTOM_NODE_REPOS; do
+    name="$(basename "${repo%.git}")"
+    target="$COMFYUI_PATH/custom_nodes/$name"
+    if [ -d "$target/.git" ]; then
+      echo "  -> updating $name"
+      git -C "$target" pull --ff-only || warn "pull failed: $name (keeping existing copy)"
+    else
+      echo "  -> cloning $name"
+      git clone --depth 1 "$repo" "$target" || warn "clone failed: $repo"
+    fi
+  done
 fi
 
 if [ -d "$REPO_DIR/workflows" ]; then
