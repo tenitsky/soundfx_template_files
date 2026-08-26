@@ -9,12 +9,12 @@ apt-get update && apt-get install -y wget ca-certificates git ffmpeg libsndfile1
 
 echo "=== Starting Stable Audio 3 Template Setup ==="
 
-# STEP 1: Install ComfyUI FIRST
+# Define the correct ComfyUI path for runpod/comfyui:cuda12.8
 COMFYUI_PATH="/workspace/runpod-slim/ComfyUI"
 
 # Self-heal: if ComfyUI isn't in the workspace yet, copy the baked build in
 if [ ! -f "$COMFYUI_PATH/main.py" ]; then
-  log "First time setup: copying baked ComfyUI to workspace..."
+  log "First time setup: Copying baked ComfyUI to workspace..."
   rm -rf "$COMFYUI_PATH"
   mkdir -p /workspace/runpod-slim
   cp -r /opt/comfyui-baked "$COMFYUI_PATH"
@@ -23,36 +23,48 @@ else
   log "ComfyUI already exists at $COMFYUI_PATH"
 fi
 
-# STEP 2: Create models directory structure directly in ComfyUI
-log "Setting up models directory..."
-mkdir -p "$COMFYUI_PATH/models/checkpoints" \
-         "$COMFYUI_PATH/models/text_encoders" \
-         "$COMFYUI_PATH/models/vae" \
-         "$COMFYUI_PATH/models/clip" \
-         "$COMFYUI_PATH/models/controlnet" \
-         "$COMFYUI_PATH/models/loras" \
-         "$COMFYUI_PATH/models/upscale_models"
+# CRITICAL: Find the correct Python environment with PyTorch
+log "Locating Python environment with PyTorch..."
 
-MODELS="$COMFYUI_PATH/models"
-log "Models directory: $MODELS"
+PYTHON_PATHS=(
+  "$COMFYUI_PATH/.venv-cu128/bin/python"
+  "$COMFYUI_PATH/venv/bin/python"
+  "$COMFYUI_PATH/.venv/bin/python"
+  "$COMFYUI_PATH/python_embeded/python"
+)
 
-# STEP 3: Set up Python
-PY="$COMFYUI_PATH/.venv-cu128/bin/python"
-if [ ! -x "$PY" ]; then
-  log "cu128 venv not found, trying alternatives..."
-  if [ -x "$COMFYUI_PATH/venv/bin/python" ]; then
-    PY="$COMFYUI_PATH/venv/bin/python"
-  elif [ -x "$COMFYUI_PATH/.venv/bin/python" ]; then
-    PY="$COMFYUI_PATH/.venv/bin/python"
+PY=""
+for p in "${PYTHON_PATHS[@]}"; do
+  if [ -x "$p" ]; then
+    log "Testing $p..."
+    if $p -c "import torch; print(f'PyTorch {torch.__version__} found')" 2>/dev/null; then
+      PY="$p"
+      log "✓ Found Python with PyTorch at: $PY"
+      break
+    else
+      log "✗ No PyTorch in $p"
+    fi
+  fi
+done
+
+# Fallback to system python
+if [ -z "$PY" ]; then
+  log "No venv with PyTorch found, checking system Python..."
+  PY="$(command -v python3)"
+  if [ -x "$PY" ] && $PY -c "import torch" 2>/dev/null; then
+    log "System Python has PyTorch: $PY"
   else
-    PY="$(command -v python3)"
+    die "No Python environment with PyTorch found!"
   fi
 fi
-[ -x "$PY" ] || die "no usable python interpreter found"
-PIP="$PY -m pip"
-log "Using python: $PY"
 
-# STEP 4: Set up caches and environment
+PIP="$PY -m pip"
+log "Using Python: $PY"
+
+# Verify PyTorch and CUDA
+$PY -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')" || die "PyTorch verification failed"
+
+# Set up environment
 export PIP_CACHE_DIR=/root/.pip-cache
 export UV_CACHE_DIR=/root/.uv-cache
 export TMPDIR=/tmp
@@ -63,32 +75,80 @@ if [ -n "${HF_TOKEN:-}" ]; then
   log "HF token detected"
 fi
 
-# STEP 5: Install custom nodes
+# Create models directory structure
+log "Preparing model directories..."
+mkdir -p "$COMFYUI_PATH/models/checkpoints" \
+         "$COMFYUI_PATH/models/text_encoders" \
+         "$COMFYUI_PATH/models/vae" \
+         "$COMFYUI_PATH/models/clip" \
+         "$COMFYUI_PATH/models/diffusion_models" \
+         "$COMFYUI_PATH/models/loras" \
+         "$COMFYUI_PATH/models/controlnet" \
+         "$COMFYUI_PATH/models/upscale_models"
+
+# Install custom nodes
 log "Installing custom nodes..."
 mkdir -p "$COMFYUI_PATH/custom_nodes"
 cd "$COMFYUI_PATH/custom_nodes"
-[ -d tenitsky-prompt-cycler-simple ] || git clone --depth 1 \
-  https://github.com/tenitsky/tenitsky-prompt-cycler-simple.git tenitsky-prompt-cycler-simple
 
-# STEP 6: Install node requirements
+# Stable Audio Sampler
+if [ ! -d "ComfyUI-StableAudioSampler" ]; then
+  log "Installing ComfyUI-StableAudioSampler..."
+  git clone --depth 1 https://github.com/lks-ai/ComfyUI-StableAudioSampler.git || log "Warning: Failed to clone ComfyUI-StableAudioSampler"
+else
+  log "ComfyUI-StableAudioSampler already installed"
+fi
+
+# Sound Lab (multiple audio nodes)
+if [ ! -d "comfyui-sound-lab" ]; then
+  log "Installing comfyui-sound-lab..."
+  git clone --depth 1 https://github.com/arnebkd/comfyui-sound-lab.git || log "Warning: Failed to clone comfyui-sound-lab"
+else
+  log "comfyui-sound-lab already installed"
+fi
+
+# Stable Audio Open
+if [ ! -d "ComfyUI-StableAudioOpen" ]; then
+  log "Installing ComfyUI-StableAudioOpen..."
+  git clone --depth 1 https://github.com/luminaloop/ComfyUI-StableAudioOpen.git || log "Warning: Failed to clone ComfyUI-StableAudioOpen"
+else
+  log "ComfyUI-StableAudioOpen already installed"
+fi
+
+# Prompt Cycler
+if [ ! -d "tenitsky-prompt-cycler-simple" ]; then
+  log "Installing tenitsky-prompt-cycler-simple..."
+  git clone --depth 1 https://github.com/tenitsky/tenitsky-prompt-cycler-simple.git tenitsky-prompt-cycler-simple || log "Warning: Failed to clone prompt cycler"
+else
+  log "Prompt cycler already installed"
+fi
+
+# Install node requirements using the CORRECT Python
 log "Installing node requirements..."
-find "$COMFYUI_PATH/custom_nodes/" -name "requirements.txt" -exec $PIP install -r {} \;
+find "$COMFYUI_PATH/custom_nodes/" -name "requirements.txt" | while read req; do
+  log "Installing requirements from: $req"
+  $PIP install -r "$req" 2>&1 | grep -v "already satisfied" || log "Warning: Some requirements may have failed to install from $req"
+done
 
-# STEP 7: Disk sanity check
-NEED_GB=4
+# Install huggingface-hub for model downloads
+log "Installing huggingface-hub..."
+$PIP install -q -U "huggingface-hub" "hf_xet" || die "Failed to install huggingface-hub"
+
+# Disk space check
+NEED_GB=15
 [ "${DL_MEDIUM:-1}" = "1" ]      && NEED_GB=$((NEED_GB + 10))
 [ "${DL_SMALL_MUSIC:-0}" = "1" ] && NEED_GB=$((NEED_GB + 3))
 [ "${DL_QWEN:-0}" = "1" ]        && NEED_GB=$((NEED_GB + 6))
 FREE_GB=$(df -BG --output=avail /workspace | tail -1 | tr -dc '0-9')
 log "Free space on /workspace: ${FREE_GB}G, need ~${NEED_GB}G"
-[ "${FREE_GB:-0}" -ge "$NEED_GB" ] || die "not enough disk: ${FREE_GB}G free, need ~${NEED_GB}G. Increase the volume size."
+[ "${FREE_GB:-0}" -ge "$NEED_GB" ] || die "Not enough disk space: ${FREE_GB}G free, need ~${NEED_GB}G. Increase volume size."
 
-# STEP 8: Download models directly to ComfyUI models directory
-log "Installing huggingface-hub..."
-$PIP install -q -U "huggingface-hub" "hf_xet" || die "could not install huggingface-hub"
-
-log "Starting model downloads to $MODELS..."
-MODELS="$MODELS" DL_MEDIUM="${DL_MEDIUM:-1}" DL_SMALL_MUSIC="${DL_SMALL_MUSIC:-0}" DL_QWEN="${DL_QWEN:-0}" \
+# Download models
+log "Starting model downloads..."
+MODELS="$COMFYUI_PATH/models" \
+DL_MEDIUM="${DL_MEDIUM:-1}" \
+DL_SMALL_MUSIC="${DL_SMALL_MUSIC:-0}" \
+DL_QWEN="${DL_QWEN:-0}" \
 $PY - <<'PYEOF'
 import os, sys
 from huggingface_hub import hf_hub_download
@@ -108,11 +168,11 @@ if os.environ["DL_QWEN"] == "1":
 
 failed = []
 for repo, fn in jobs:
-    print(f"[setup] fetching {repo}/{fn}", flush=True)
+    print(f"[setup] Fetching {repo}/{fn}", flush=True)
     try:
         p = hf_hub_download(repo_id=repo, filename=fn, local_dir=dest)
         size_gb = os.path.getsize(p)/1e9
-        print(f"[setup] OK {p} ({size_gb:.2f} GB)", flush=True)
+        print(f"[setup] ✓ Downloaded {fn} ({size_gb:.2f} GB)", flush=True)
         
         # Verify the file is in the correct location
         expected_path = os.path.join(dest, fn)
@@ -122,17 +182,18 @@ for repo, fn in jobs:
             print(f"[setup] ⚠ File downloaded to: {p}", flush=True)
             print(f"[setup] ⚠ Expected at: {expected_path}", flush=True)
     except Exception as e:
-        print(f"[setup][ERROR] {repo}/{fn}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        print(f"[setup] ✗ Failed to download {repo}/{fn}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         failed.append(fn)
 
 if failed:
-    print("[setup][FATAL] downloads failed: " + ", ".join(failed), file=sys.stderr)
+    print(f"[setup] FATAL: Downloads failed: {', '.join(failed)}", file=sys.stderr)
     sys.exit(1)
-print("[setup] All model downloads completed successfully!", flush=True)
-PYEOF
-[ $? -eq 0 ] || die "model download failed -- see errors above. Not starting ComfyUI."
 
-# STEP 9: Install workflows
+print("[setup] ✓ All model downloads completed successfully!", flush=True)
+PYEOF
+[ $? -eq 0 ] || die "Model download failed -- see errors above. Not starting ComfyUI."
+
+# Copy workflows
 log "Installing workflows..."
 WF_DEST="$COMFYUI_PATH/user/default/workflows"
 mkdir -p "$WF_DEST"
@@ -144,24 +205,52 @@ else
   log "NOTE: /tmp/temp_repo/workflows not found -- skipping workflow install"
 fi
 
-# STEP 10: Verify everything is in place
-echo "=== Model inventory ==="
-echo "Checkpoints directory: $MODELS/checkpoints/"
-ls -lh "$MODELS/checkpoints/" 2>/dev/null || echo "No checkpoints found!"
-echo ""
-echo "Text Encoders directory: $MODELS/text_encoders/"
-ls -lh "$MODELS/text_encoders/" 2>/dev/null || echo "No text encoders found!"
+# Copy LoRAs if present
+if [ -d /tmp/temp_repo/lora ]; then
+  log "Installing LoRA files..."
+  for f in /tmp/temp_repo/lora/*.safetensors; do
+    [ -e "$f" ] || continue
+    fname=$(basename "$f")
+    dest="$COMFYUI_PATH/models/loras/$fname"
+    if [ -f "$dest" ]; then
+      log "LoRA $fname already exists, skipping."
+      continue
+    fi
+    cp "$f" "$dest"
+    log "Installed LoRA: $fname"
+  done
+fi
 
+# Verify everything is in place
+echo "=== Model Inventory ==="
+echo "Checkpoints directory:"
+ls -lh "$COMFYUI_PATH/models/checkpoints/" 2>/dev/null || echo "No checkpoints found!"
+echo ""
+echo "Text Encoders directory:"
+ls -lh "$COMFYUI_PATH/models/text_encoders/" 2>/dev/null || echo "No text encoders found!"
+
+# Verify critical files
 log "Verifying model files..."
-for f in "$MODELS/text_encoders/t5gemma_b_b_ul2.safetensors" \
-         "$MODELS/checkpoints/stable_audio_3_small_sfx.safetensors"; do
+for f in \
+  "$COMFYUI_PATH/models/text_encoders/t5gemma_b_b_ul2.safetensors" \
+  "$COMFYUI_PATH/models/checkpoints/stable_audio_3_small_sfx.safetensors"; do
   if [ -s "$f" ]; then
-    log "✓ Found: $f ($(du -h $f | cut -f1))"
+    log "✓ Found: $(basename $f) ($(du -h $f | cut -f1))"
   else
     die "✗ Missing required model: $f"
   fi
 done
 
-log "Setup complete! Models are in the correct location."
+# Verify PyTorch one more time
+log "Final verification..."
+$PY -c "import torch; print(f'✓ PyTorch {torch.__version__} ready')" || die "PyTorch not working"
+
+# Clean up
+log "Cleaning up temporary files..."
+rm -rf /tmp/temp_repo
+
+log "=== Setup Complete! ==="
+log "Models are in: $COMFYUI_PATH/models/"
+log "Custom nodes in: $COMFYUI_PATH/custom_nodes/"
 log "Handing over to start script..."
 exec /start.sh
