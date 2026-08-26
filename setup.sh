@@ -7,7 +7,7 @@ die()  { echo "[setup][FATAL] $*" >&2; exit 1; }
 echo "=== Ensuring System Dependencies are Installed ==="
 apt-get update && apt-get install -y wget ca-certificates git ffmpeg libsndfile1
 
-echo "=== Starting Stable Audio 3 Template Setup ==="
+echo "=== Starting Stable Audio 3 Medium Base Template Setup ==="
 
 # Define the correct ComfyUI path for runpod/comfyui:cuda12.8
 COMFYUI_PATH="/workspace/runpod-slim/ComfyUI"
@@ -80,18 +80,14 @@ log "Preparing model directories..."
 mkdir -p "$COMFYUI_PATH/models/checkpoints" \
          "$COMFYUI_PATH/models/text_encoders" \
          "$COMFYUI_PATH/models/vae" \
-         "$COMFYUI_PATH/models/clip" \
-         "$COMFYUI_PATH/models/diffusion_models" \
-         "$COMFYUI_PATH/models/loras" \
-         "$COMFYUI_PATH/models/controlnet" \
-         "$COMFYUI_PATH/models/upscale_models"
+         "$COMFYUI_PATH/models/clip"
 
 # Install custom nodes
 log "Installing custom nodes..."
 mkdir -p "$COMFYUI_PATH/custom_nodes"
 cd "$COMFYUI_PATH/custom_nodes"
 
-# Stable Audio Sampler
+# Stable Audio Sampler (main node for SA3)
 if [ ! -d "ComfyUI-StableAudioSampler" ]; then
   log "Installing ComfyUI-StableAudioSampler..."
   git clone --depth 1 https://github.com/lks-ai/ComfyUI-StableAudioSampler.git || log "Warning: Failed to clone ComfyUI-StableAudioSampler"
@@ -99,28 +95,12 @@ else
   log "ComfyUI-StableAudioSampler already installed"
 fi
 
-# Sound Lab (multiple audio nodes)
-if [ ! -d "comfyui-sound-lab" ]; then
-  log "Installing comfyui-sound-lab..."
-  git clone --depth 1 https://github.com/arnebkd/comfyui-sound-lab.git || log "Warning: Failed to clone comfyui-sound-lab"
-else
-  log "comfyui-sound-lab already installed"
-fi
-
-# Stable Audio Open
-if [ ! -d "ComfyUI-StableAudioOpen" ]; then
-  log "Installing ComfyUI-StableAudioOpen..."
-  git clone --depth 1 https://github.com/luminaloop/ComfyUI-StableAudioOpen.git || log "Warning: Failed to clone ComfyUI-StableAudioOpen"
-else
-  log "ComfyUI-StableAudioOpen already installed"
-fi
-
-# Prompt Cycler
+# Tenitsky Prompt Cycler Simple
 if [ ! -d "tenitsky-prompt-cycler-simple" ]; then
   log "Installing tenitsky-prompt-cycler-simple..."
-  git clone --depth 1 https://github.com/tenitsky/tenitsky-prompt-cycler-simple.git tenitsky-prompt-cycler-simple || log "Warning: Failed to clone prompt cycler"
+  git clone --depth 1 https://github.com/tenitsky/tenitsky-prompt-cycler-simple.git tenitsky-prompt-cycler-simple || log "Warning: Failed to clone tenitsky-prompt-cycler-simple"
 else
-  log "Prompt cycler already installed"
+  log "tenitsky-prompt-cycler-simple already installed"
 fi
 
 # Install node requirements using the CORRECT Python
@@ -134,11 +114,8 @@ done
 log "Installing huggingface-hub..."
 $PIP install -q -U "huggingface-hub" "hf_xet" || die "Failed to install huggingface-hub"
 
-# Disk space check
-NEED_GB=15
-[ "${DL_MEDIUM:-1}" = "1" ]      && NEED_GB=$((NEED_GB + 10))
-[ "${DL_SMALL_MUSIC:-0}" = "1" ] && NEED_GB=$((NEED_GB + 3))
-[ "${DL_QWEN:-0}" = "1" ]        && NEED_GB=$((NEED_GB + 6))
+# Disk space check (Medium Base ~10GB + Qwen3.5 ~4GB = ~14GB total)
+NEED_GB=16
 FREE_GB=$(df -BG --output=avail /workspace | tail -1 | tr -dc '0-9')
 log "Free space on /workspace: ${FREE_GB}G, need ~${NEED_GB}G"
 [ "${FREE_GB:-0}" -ge "$NEED_GB" ] || die "Not enough disk space: ${FREE_GB}G free, need ~${NEED_GB}G. Increase volume size."
@@ -146,25 +123,17 @@ log "Free space on /workspace: ${FREE_GB}G, need ~${NEED_GB}G"
 # Download models
 log "Starting model downloads..."
 MODELS="$COMFYUI_PATH/models" \
-DL_MEDIUM="${DL_MEDIUM:-1}" \
-DL_SMALL_MUSIC="${DL_SMALL_MUSIC:-0}" \
-DL_QWEN="${DL_QWEN:-0}" \
 $PY - <<'PYEOF'
 import os, sys
 from huggingface_hub import hf_hub_download
 
 dest = os.environ["MODELS"]
-SA3 = "Comfy-Org/stable-audio-3"
 jobs = [
-    (SA3, "text_encoders/t5gemma_b_b_ul2.safetensors"),
-    (SA3, "checkpoints/stable_audio_3_small_sfx.safetensors"),
+    # Qwen3.5 Text Encoder (for Medium Base)
+    ("Comfy-Org/Qwen3.5", "text_encoders/qwen3.5_2b_bf16.safetensors"),
+    # Stable Audio 3 Medium Base
+    ("Comfy-Org/stable-audio-3", "checkpoints/stable_audio_3_medium_base.safetensors"),
 ]
-if os.environ["DL_MEDIUM"] == "1":
-    jobs.append((SA3, "checkpoints/stable_audio_3_medium.safetensors"))
-if os.environ["DL_SMALL_MUSIC"] == "1":
-    jobs.append((SA3, "checkpoints/stable_audio_3_small_music.safetensors"))
-if os.environ["DL_QWEN"] == "1":
-    jobs.append(("Comfy-Org/Qwen3.5", "text_encoders/qwen3.5_2b_bf16.safetensors"))
 
 failed = []
 for repo, fn in jobs:
@@ -205,22 +174,6 @@ else
   log "NOTE: /tmp/temp_repo/workflows not found -- skipping workflow install"
 fi
 
-# Copy LoRAs if present
-if [ -d /tmp/temp_repo/lora ]; then
-  log "Installing LoRA files..."
-  for f in /tmp/temp_repo/lora/*.safetensors; do
-    [ -e "$f" ] || continue
-    fname=$(basename "$f")
-    dest="$COMFYUI_PATH/models/loras/$fname"
-    if [ -f "$dest" ]; then
-      log "LoRA $fname already exists, skipping."
-      continue
-    fi
-    cp "$f" "$dest"
-    log "Installed LoRA: $fname"
-  done
-fi
-
 # Verify everything is in place
 echo "=== Model Inventory ==="
 echo "Checkpoints directory:"
@@ -232,12 +185,22 @@ ls -lh "$COMFYUI_PATH/models/text_encoders/" 2>/dev/null || echo "No text encode
 # Verify critical files
 log "Verifying model files..."
 for f in \
-  "$COMFYUI_PATH/models/text_encoders/t5gemma_b_b_ul2.safetensors" \
-  "$COMFYUI_PATH/models/checkpoints/stable_audio_3_small_sfx.safetensors"; do
+  "$COMFYUI_PATH/models/checkpoints/stable_audio_3_medium_base.safetensors" \
+  "$COMFYUI_PATH/models/text_encoders/qwen3.5_2b_bf16.safetensors"; do
   if [ -s "$f" ]; then
     log "✓ Found: $(basename $f) ($(du -h $f | cut -f1))"
   else
     die "✗ Missing required model: $f"
+  fi
+done
+
+# Verify custom nodes installed
+log "Verifying custom nodes..."
+for node in "ComfyUI-StableAudioSampler" "tenitsky-prompt-cycler-simple"; do
+  if [ -d "$COMFYUI_PATH/custom_nodes/$node" ]; then
+    log "✓ Custom node installed: $node"
+  else
+    log "⚠ Custom node missing: $node"
   fi
 done
 
@@ -251,6 +214,10 @@ rm -rf /tmp/temp_repo
 
 log "=== Setup Complete! ==="
 log "Models are in: $COMFYUI_PATH/models/"
+log "  - Checkpoint: stable_audio_3_medium_base.safetensors"
+log "  - Text Encoder: qwen3.5_2b_bf16.safetensors"
 log "Custom nodes in: $COMFYUI_PATH/custom_nodes/"
+log "  - ComfyUI-StableAudioSampler"
+log "  - tenitsky-prompt-cycler-simple"
 log "Handing over to start script..."
 exec /start.sh
