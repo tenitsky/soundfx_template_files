@@ -11,7 +11,6 @@ echo "=== Starting Stable Audio 3 Template Setup ==="
 
 # STEP 1: Install ComfyUI FIRST
 COMFYUI_PATH="/workspace/runpod-slim/ComfyUI"
-MODELS_STORE="/workspace/models"
 
 # Self-heal: if ComfyUI isn't in the workspace yet, copy the baked build in
 if [ ! -f "$COMFYUI_PATH/main.py" ]; then
@@ -24,24 +23,18 @@ else
   log "ComfyUI already exists at $COMFYUI_PATH"
 fi
 
-# STEP 2: Set up models directory and symlink
-mkdir -p "$MODELS_STORE/checkpoints" "$MODELS_STORE/text_encoders" "$MODELS_STORE/vae" "$MODELS_STORE/clip"
-
-# If ComfyUI/models is a real directory, move any existing content to our store
-if [ -e "$COMFYUI_PATH/models" ] && [ ! -L "$COMFYUI_PATH/models" ]; then
-  log "Moving existing models directory to $MODELS_STORE..."
-  cp -rn "$COMFYUI_PATH/models/." "$MODELS_STORE/" 2>/dev/null || true
-  rm -rf "$COMFYUI_PATH/models"
-fi
-
-# Create symlink if it doesn't exist
-if [ ! -L "$COMFYUI_PATH/models" ]; then
-  log "Creating symlink: $COMFYUI_PATH/models -> $MODELS_STORE"
-  ln -s "$MODELS_STORE" "$COMFYUI_PATH/models"
-fi
+# STEP 2: Create models directory structure directly in ComfyUI
+log "Setting up models directory..."
+mkdir -p "$COMFYUI_PATH/models/checkpoints" \
+         "$COMFYUI_PATH/models/text_encoders" \
+         "$COMFYUI_PATH/models/vae" \
+         "$COMFYUI_PATH/models/clip" \
+         "$COMFYUI_PATH/models/controlnet" \
+         "$COMFYUI_PATH/models/loras" \
+         "$COMFYUI_PATH/models/upscale_models"
 
 MODELS="$COMFYUI_PATH/models"
-log "Models directory: $MODELS -> $(readlink -f $MODELS)"
+log "Models directory: $MODELS"
 
 # STEP 3: Set up Python
 PY="$COMFYUI_PATH/.venv-cu128/bin/python"
@@ -90,11 +83,11 @@ FREE_GB=$(df -BG --output=avail /workspace | tail -1 | tr -dc '0-9')
 log "Free space on /workspace: ${FREE_GB}G, need ~${NEED_GB}G"
 [ "${FREE_GB:-0}" -ge "$NEED_GB" ] || die "not enough disk: ${FREE_GB}G free, need ~${NEED_GB}G. Increase the volume size."
 
-# STEP 8: Download models
+# STEP 8: Download models directly to ComfyUI models directory
 log "Installing huggingface-hub..."
 $PIP install -q -U "huggingface-hub" "hf_xet" || die "could not install huggingface-hub"
 
-log "Starting model downloads..."
+log "Starting model downloads to $MODELS..."
 MODELS="$MODELS" DL_MEDIUM="${DL_MEDIUM:-1}" DL_SMALL_MUSIC="${DL_SMALL_MUSIC:-0}" DL_QWEN="${DL_QWEN:-0}" \
 $PY - <<'PYEOF'
 import os, sys
@@ -120,6 +113,14 @@ for repo, fn in jobs:
         p = hf_hub_download(repo_id=repo, filename=fn, local_dir=dest)
         size_gb = os.path.getsize(p)/1e9
         print(f"[setup] OK {p} ({size_gb:.2f} GB)", flush=True)
+        
+        # Verify the file is in the correct location
+        expected_path = os.path.join(dest, fn)
+        if os.path.exists(expected_path):
+            print(f"[setup] ✓ File at expected location: {expected_path}", flush=True)
+        else:
+            print(f"[setup] ⚠ File downloaded to: {p}", flush=True)
+            print(f"[setup] ⚠ Expected at: {expected_path}", flush=True)
     except Exception as e:
         print(f"[setup][ERROR] {repo}/{fn}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         failed.append(fn)
@@ -145,29 +146,22 @@ fi
 
 # STEP 10: Verify everything is in place
 echo "=== Model inventory ==="
-echo "Checkpoints:"
+echo "Checkpoints directory: $MODELS/checkpoints/"
 ls -lh "$MODELS/checkpoints/" 2>/dev/null || echo "No checkpoints found!"
 echo ""
-echo "Text Encoders:"
+echo "Text Encoders directory: $MODELS/text_encoders/"
 ls -lh "$MODELS/text_encoders/" 2>/dev/null || echo "No text encoders found!"
-
-log "Verifying symlink..."
-if [ -L "$COMFYUI_PATH/models" ]; then
-  log "✓ Models symlink is properly set"
-  log "  $COMFYUI_PATH/models -> $(readlink -f $COMFYUI_PATH/models)"
-else
-  die "✗ Models symlink is not set correctly"
-fi
 
 log "Verifying model files..."
 for f in "$MODELS/text_encoders/t5gemma_b_b_ul2.safetensors" \
          "$MODELS/checkpoints/stable_audio_3_small_sfx.safetensors"; do
   if [ -s "$f" ]; then
-    log "✓ Found: $f"
+    log "✓ Found: $f ($(du -h $f | cut -f1))"
   else
     die "✗ Missing required model: $f"
   fi
 done
 
-log "Setup complete! Handing over to start script..."
+log "Setup complete! Models are in the correct location."
+log "Handing over to start script..."
 exec /start.sh
