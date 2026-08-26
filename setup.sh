@@ -114,8 +114,8 @@ done
 log "Installing huggingface-hub..."
 $PIP install -q -U "huggingface-hub" "hf_xet" || die "Failed to install huggingface-hub"
 
-# Disk space check (Medium Base ~10GB + Qwen3.5 ~4GB = ~14GB total)
-NEED_GB=16
+# Disk space check (Medium Base ~10GB + T5Gemma ~6GB + Qwen3.5 ~4GB = ~20GB total)
+NEED_GB=22
 FREE_GB=$(df -BG --output=avail /workspace | tail -1 | tr -dc '0-9')
 log "Free space on /workspace: ${FREE_GB}G, need ~${NEED_GB}G"
 [ "${FREE_GB:-0}" -ge "$NEED_GB" ] || die "Not enough disk space: ${FREE_GB}G free, need ~${NEED_GB}G. Increase volume size."
@@ -129,7 +129,9 @@ from huggingface_hub import hf_hub_download
 
 dest = os.environ["MODELS"]
 jobs = [
-    # Qwen3.5 Text Encoder (for Medium Base)
+    # T5Gemma Text Encoder (for Medium Base)
+    ("Comfy-Org/stable-audio-3", "text_encoders/t5gemma_b_b_ul2.safetensors"),
+    # Qwen3.5 Text Encoder (also needed)
     ("Comfy-Org/Qwen3.5", "text_encoders/qwen3.5_2b_bf16.safetensors"),
     # Stable Audio 3 Medium Base
     ("Comfy-Org/stable-audio-3", "checkpoints/stable_audio_3_medium_base.safetensors"),
@@ -186,6 +188,7 @@ ls -lh "$COMFYUI_PATH/models/text_encoders/" 2>/dev/null || echo "No text encode
 log "Verifying model files..."
 for f in \
   "$COMFYUI_PATH/models/checkpoints/stable_audio_3_medium_base.safetensors" \
+  "$COMFYUI_PATH/models/text_encoders/t5gemma_b_b_ul2.safetensors" \
   "$COMFYUI_PATH/models/text_encoders/qwen3.5_2b_bf16.safetensors"; do
   if [ -s "$f" ]; then
     log "✓ Found: $(basename $f) ($(du -h $f | cut -f1))"
@@ -215,6 +218,7 @@ rm -rf /tmp/temp_repo
 log "=== Setup Complete! ==="
 log "Models are in: $COMFYUI_PATH/models/"
 log "  - Checkpoint: stable_audio_3_medium_base.safetensors"
+log "  - Text Encoder: t5gemma_b_b_ul2.safetensors"
 log "  - Text Encoder: qwen3.5_2b_bf16.safetensors"
 log "Custom nodes in: $COMFYUI_PATH/custom_nodes/"
 log "  - ComfyUI-StableAudioSampler"
