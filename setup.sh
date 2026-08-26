@@ -8,10 +8,10 @@ echo "=== Ensuring System Dependencies are Installed ==="
 apt-get update && apt-get install -y wget ca-certificates git ffmpeg libsndfile1
 
 echo "=== Starting Stable Audio 3 Template Setup ==="
+
+# STEP 1: Install ComfyUI FIRST
 COMFYUI_PATH="/workspace/runpod-slim/ComfyUI"
 MODELS_STORE="/workspace/models"
-
-mkdir -p "$MODELS_STORE/checkpoints" "$MODELS_STORE/text_encoders"
 
 # Self-heal: if ComfyUI isn't in the workspace yet, copy the baked build in
 if [ ! -f "$COMFYUI_PATH/main.py" ]; then
@@ -19,44 +19,69 @@ if [ ! -f "$COMFYUI_PATH/main.py" ]; then
   rm -rf "$COMFYUI_PATH"
   mkdir -p /workspace/runpod-slim
   cp -r /opt/comfyui-baked "$COMFYUI_PATH"
+  log "ComfyUI copied to $COMFYUI_PATH"
+else
+  log "ComfyUI already exists at $COMFYUI_PATH"
 fi
 
-# models/ becomes a symlink to /workspace/models so the rm -rf above can
-# never delete weights, and a re-baked image doesn't orphan them.
+# STEP 2: Set up models directory and symlink
+mkdir -p "$MODELS_STORE/checkpoints" "$MODELS_STORE/text_encoders" "$MODELS_STORE/vae" "$MODELS_STORE/clip"
+
+# If ComfyUI/models is a real directory, move any existing content to our store
+if [ -e "$COMFYUI_PATH/models" ] && [ ! -L "$COMFYUI_PATH/models" ]; then
+  log "Moving existing models directory to $MODELS_STORE..."
+  cp -rn "$COMFYUI_PATH/models/." "$MODELS_STORE/" 2>/dev/null || true
+  rm -rf "$COMFYUI_PATH/models"
+fi
+
+# Create symlink if it doesn't exist
 if [ ! -L "$COMFYUI_PATH/models" ]; then
-  if [ -d "$COMFYUI_PATH/models" ]; then
-    cp -rn "$COMFYUI_PATH/models/." "$MODELS_STORE/" 2>/dev/null || true
-    rm -rf "$COMFYUI_PATH/models"
-  fi
+  log "Creating symlink: $COMFYUI_PATH/models -> $MODELS_STORE"
   ln -s "$MODELS_STORE" "$COMFYUI_PATH/models"
 fi
-MODELS="$COMFYUI_PATH/models"
 
+MODELS="$COMFYUI_PATH/models"
+log "Models directory: $MODELS -> $(readlink -f $MODELS)"
+
+# STEP 3: Set up Python
 PY="$COMFYUI_PATH/.venv-cu128/bin/python"
-[ -x "$PY" ] || PY="$(command -v python3)"
+if [ ! -x "$PY" ]; then
+  log "cu128 venv not found, trying alternatives..."
+  if [ -x "$COMFYUI_PATH/venv/bin/python" ]; then
+    PY="$COMFYUI_PATH/venv/bin/python"
+  elif [ -x "$COMFYUI_PATH/.venv/bin/python" ]; then
+    PY="$COMFYUI_PATH/.venv/bin/python"
+  else
+    PY="$(command -v python3)"
+  fi
+fi
 [ -x "$PY" ] || die "no usable python interpreter found"
 PIP="$PY -m pip"
 log "Using python: $PY"
 
+# STEP 4: Set up caches and environment
 export PIP_CACHE_DIR=/root/.pip-cache
 export UV_CACHE_DIR=/root/.uv-cache
 export TMPDIR=/tmp
 export HF_HOME=/workspace/.cache/huggingface
 mkdir -p "$PIP_CACHE_DIR" "$UV_CACHE_DIR" "$TMPDIR" "$HF_HOME"
-if [ -n "${HF_TOKEN:-}" ]; then export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"; fi
+if [ -n "${HF_TOKEN:-}" ]; then 
+  export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
+  log "HF token detected"
+fi
 
-# 1. Custom nodes
+# STEP 5: Install custom nodes
 log "Installing custom nodes..."
 mkdir -p "$COMFYUI_PATH/custom_nodes"
 cd "$COMFYUI_PATH/custom_nodes"
 [ -d tenitsky-prompt-cycler-simple ] || git clone --depth 1 \
   https://github.com/tenitsky/tenitsky-prompt-cycler-simple.git tenitsky-prompt-cycler-simple
 
-# 2. Node requirements
+# STEP 6: Install node requirements
 log "Installing node requirements..."
 find "$COMFYUI_PATH/custom_nodes/" -name "requirements.txt" -exec $PIP install -r {} \;
 
-# 3. Disk sanity check before touching 13 GB of weights
+# STEP 7: Disk sanity check
 NEED_GB=4
 [ "${DL_MEDIUM:-1}" = "1" ]      && NEED_GB=$((NEED_GB + 10))
 [ "${DL_SMALL_MUSIC:-0}" = "1" ] && NEED_GB=$((NEED_GB + 3))
@@ -65,9 +90,11 @@ FREE_GB=$(df -BG --output=avail /workspace | tail -1 | tr -dc '0-9')
 log "Free space on /workspace: ${FREE_GB}G, need ~${NEED_GB}G"
 [ "${FREE_GB:-0}" -ge "$NEED_GB" ] || die "not enough disk: ${FREE_GB}G free, need ~${NEED_GB}G. Increase the volume size."
 
-# 4. Weights — via the library, not a guessed CLI path. Hard-fails on error.
+# STEP 8: Download models
+log "Installing huggingface-hub..."
 $PIP install -q -U "huggingface-hub" "hf_xet" || die "could not install huggingface-hub"
 
+log "Starting model downloads..."
 MODELS="$MODELS" DL_MEDIUM="${DL_MEDIUM:-1}" DL_SMALL_MUSIC="${DL_SMALL_MUSIC:-0}" DL_QWEN="${DL_QWEN:-0}" \
 $PY - <<'PYEOF'
 import os, sys
@@ -91,7 +118,8 @@ for repo, fn in jobs:
     print(f"[setup] fetching {repo}/{fn}", flush=True)
     try:
         p = hf_hub_download(repo_id=repo, filename=fn, local_dir=dest)
-        print(f"[setup] OK {p} ({os.path.getsize(p)/1e9:.2f} GB)", flush=True)
+        size_gb = os.path.getsize(p)/1e9
+        print(f"[setup] OK {p} ({size_gb:.2f} GB)", flush=True)
     except Exception as e:
         print(f"[setup][ERROR] {repo}/{fn}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         failed.append(fn)
@@ -99,10 +127,11 @@ for repo, fn in jobs:
 if failed:
     print("[setup][FATAL] downloads failed: " + ", ".join(failed), file=sys.stderr)
     sys.exit(1)
+print("[setup] All model downloads completed successfully!", flush=True)
 PYEOF
 [ $? -eq 0 ] || die "model download failed -- see errors above. Not starting ComfyUI."
 
-# 5. Workflows
+# STEP 9: Install workflows
 log "Installing workflows..."
 WF_DEST="$COMFYUI_PATH/user/default/workflows"
 mkdir -p "$WF_DEST"
@@ -114,12 +143,30 @@ else
   log "NOTE: /tmp/temp_repo/workflows not found -- skipping workflow install"
 fi
 
-# 6. Verify before handing over
+# STEP 10: Verify everything is in place
 echo "=== Model inventory ==="
-ls -lh "$MODELS/checkpoints" "$MODELS/text_encoders"
+echo "Checkpoints:"
+ls -lh "$MODELS/checkpoints/" 2>/dev/null || echo "No checkpoints found!"
+echo ""
+echo "Text Encoders:"
+ls -lh "$MODELS/text_encoders/" 2>/dev/null || echo "No text encoders found!"
+
+log "Verifying symlink..."
+if [ -L "$COMFYUI_PATH/models" ]; then
+  log "✓ Models symlink is properly set"
+  log "  $COMFYUI_PATH/models -> $(readlink -f $COMFYUI_PATH/models)"
+else
+  die "✗ Models symlink is not set correctly"
+fi
+
+log "Verifying model files..."
 for f in "$MODELS/text_encoders/t5gemma_b_b_ul2.safetensors" \
          "$MODELS/checkpoints/stable_audio_3_small_sfx.safetensors"; do
-  [ -s "$f" ] || die "missing required model: $f"
+  if [ -s "$f" ]; then
+    log "✓ Found: $f"
+  else
+    die "✗ Missing required model: $f"
+  fi
 done
 
 log "Setup complete! Handing over to start script..."
