@@ -1,0 +1,870 @@
+{
+  "id": "0dd1c639-020a-44a6-acaf-f81f8810f3e2",
+  "revision": 0,
+  "last_node_id": 37,
+  "last_link_id": 42,
+  "nodes": [
+    {
+      "id": 19,
+      "type": "KSampler",
+      "pos": [
+        5962.0830095501715,
+        329.05515520796513
+      ],
+      "size": [
+        320,
+        350
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 22
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 23
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 24
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            20
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "KSampler",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        153930454813541,
+        "randomize",
+        50,
+        7,
+        "lcm",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 24,
+      "type": "CLIPTextEncode",
+      "pos": [
+        5305.353274936058,
+        710.6307733120138
+      ],
+      "size": [
+        450,
+        240
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 27
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 36
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "CLIPTextEncode",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "wind blowing"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 18,
+      "type": "VAEDecodeAudio",
+      "pos": [
+        6345.967917427807,
+        327.99071293573036
+      ],
+      "size": [
+        230,
+        100
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 20
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "slot_index": 0,
+          "links": [
+            26
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "VAEDecodeAudio",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 17,
+      "type": "CLIPTextEncode",
+      "pos": [
+        5315.353274936058,
+        1000.6307733120136
+      ],
+      "size": [
+        440,
+        140
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            24
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "CLIPTextEncode",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 21,
+      "type": "CLIPLoader",
+      "pos": [
+        4708.553442285954,
+        891.9002993634932
+      ],
+      "size": [
+        440,
+        170
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            19,
+            27
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "CLIPLoader",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "models": [
+          {
+            "directory": "text_encoders",
+            "name": "t5gemma_b_b_ul2.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors"
+          }
+        ],
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "t5gemma_b_b_ul2.safetensors",
+        "stable_audio",
+        "default"
+      ]
+    },
+    {
+      "id": 32,
+      "type": "ComfyNumberConvert",
+      "pos": [
+        4859.658173740269,
+        1255.7399512009565
+      ],
+      "size": [
+        149.9999984741211,
+        46
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "value",
+          "name": "value",
+          "type": "INT,FLOAT,STRING,BOOLEAN",
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            35
+          ]
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.26.2",
+        "Node name for S&R": "ComfyNumberConvert"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 20,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        5207.59244609214,
+        339.2461600750042
+      ],
+      "size": [
+        440,
+        190
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            22
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": []
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "CheckpointLoaderSimple",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "models": [
+          {
+            "directory": "checkpoints",
+            "name": "stable_audio_3_medium_base.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/checkpoints/stable_audio_3_medium_base.safetensors"
+          }
+        ],
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "stable_audio_3_medium_base.safetensors"
+      ]
+    },
+    {
+      "id": 26,
+      "type": "PromptCycler",
+      "pos": [
+        3825.2706868987357,
+        597.2052289198134
+      ],
+      "size": [
+        432.7937553416041,
+        551.8632355570111
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reset_cycle",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "reset_cycle"
+          },
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            36,
+            38
+          ]
+        },
+        {
+          "name": "cycle_index",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "title": "Sound Prompts",
+      "properties": {
+        "aux_id": "tenitsky/tenitsky-prompt-cycler-simple",
+        "ver": "e3a6d3a86813391600a0c43dfcc811ae138bf3d5",
+        "Node name for S&R": "PromptCycler"
+      },
+      "widgets_values": [
+        23,
+        "increment",
+        "sequential",
+        false,
+        "ethereal ice palace music loop, harp and celesta over soaring strings, cold wind and distant crystal tinkles, weightless and enchanted\nslow haunting ice cavern music loop, sparse celesta melody over airy strings, frozen wind and faint glacial groans, gently melancholic\ntriumphant frozen fanfare loop, bright crystal bells and swelling strings over a driving glittering pulse, celebratory and regal\nepic glacial fanfare loop, thundering ice drums under soaring strings and shimmering crystal chimes, powerful and rising\nshort jubilant crystal fanfare climbing quickly through glassy bells to a bright frozen peak\ngrand ice palace victory loop, massive frozen drums and blazing brass beneath cascading crystal arpeggios\nradiant frozen victory loop, pulsing crystal bells and blazing strings over a glittering shimmer, exultant and bright\nshort bright flourish of magical ice chimes ascending quickly with airy cavern shimmer\nrising howl of cold wind through an ice cavern, groaning glacier swelling with crystal tension, ending on a deep frozen thunk\nfast light frost whoosh sweeping upward, ending with a soft muffled snow impact\ncontinuous shower of coins and crystal shards cascading and clattering into a frozen pile, bright and endless\ncrisp frosty click with a quick icy fizzle tail\nsoft heavy thud into packed snow, dull and short\nbright magical ice chime with a low frozen sweep beneath it and a short shimmering decay\ntiny sharp icicle plink, glassy and high\nmagical frost whoosh rising quickly into an ethereal crystal shimmer\nheavy block of ice cracking with a short dull frozen resonance\nsharp glassy ice ping with a quick crystalline decay\nquick high crack of splintering ice with a very short ringing tail\nshort sharp icicle strike with a bright glassy decay\nquick bright zap of freezing frost, crisp and instant\nlight airy frost whoosh rising with a sparkling glittering trail\nquick bright chime struck on a hollow crystal\ndelicate icicle ding with a very fast glassy decay\nsmall gentle clink of ice with a subtle hollow cavern ring\ntiny high frozen tick, crisp and percussive\nshort crisp click of frost cracking, high and dry\nvery short bright ice chime with a quick crystalline shimmer\nsoft thud into snow followed by a tiny rattle of ice fragments\nshort bright delicate crystal chime rising with an airy frozen shimmer\nquick bright crack of ice with a very short high ringing tail\nbright frosty pop rising quickly, crisp and glassy\nquick bright high frozen blip\nquick magical ice chime with a gentle fading cavern resonance\nbright high crystal chime with a very short glassy tail\nquick bright icicle ding with a clear short resonant tail\nbright quick crystal chime with a subtle short upward frozen tone\nmagical frost whoosh with a high ethereal crystal shimmer trailing off\nmysterious frozen music loop, plucked crystal strings and breathy ice flute drifting through a vast cavern\nquick high frost sparkle rising and fading into the cold air\nswift icy whoosh followed by a sharp bright crystal ping\nshort bright triumphant flourish of frozen bells ringing out\nquick frost whoosh into a crisp impact and a short ringing crack of ice\nloud heavy slab of ice dropping with a brief deep frozen boom\nbright magical ice chime with a quick upward sweep and fast decay\nshort bright crystal jingle ascending with a quick shimmering frost decay\nshort bright high ping of struck crystal, clean and glassy\nbright frozen chime rising quickly with a short glittering tail\nvery quick bright icicle ping, thin and high\nshort sharp click of cracking frost\nquick ascending icy whoosh ending with a light distinct clink of ice\nquick frost whoosh ending in a bright light sparkling crystal chime\n"
+      ]
+    },
+    {
+      "id": 27,
+      "type": "PromptCycler",
+      "pos": [
+        3830.0771443473077,
+        1265.450826299953
+      ],
+      "size": [
+        432.7937553416041,
+        551.8632355570111
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reset_cycle",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "reset_cycle"
+          },
+          "link": 41
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            34
+          ]
+        },
+        {
+          "name": "cycle_index",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "title": "Sound Length",
+      "properties": {
+        "aux_id": "tenitsky/tenitsky-prompt-cycler-simple",
+        "ver": "e3a6d3a86813391600a0c43dfcc811ae138bf3d5",
+        "Node name for S&R": "PromptCycler"
+      },
+      "widgets_values": [
+        23,
+        "increment",
+        "sequential",
+        false,
+        "69\n132\n8\n8\n8\n8\n8\n2\n8\n1\n17\n1\n1\n4\n1\n1\n1\n2\n1\n1\n1\n1\n2\n4\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n1\n2\n4\n6\n1\n1\n2\n1\n1\n1\n2\n3\n1\n1\n1\n1\n1\n"
+      ]
+    },
+    {
+      "id": 23,
+      "type": "EmptyLatentAudio",
+      "pos": [
+        5327.612610717835,
+        1217.8707153066343
+      ],
+      "size": [
+        430,
+        140
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seconds",
+          "type": "FLOAT",
+          "widget": {
+            "name": "seconds"
+          },
+          "link": 35
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            25
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "EmptyLatentAudio",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        6,
+        1
+      ]
+    },
+    {
+      "id": 33,
+      "type": "PromptCycler",
+      "pos": [
+        6345.170979851329,
+        789.3019120139955
+      ],
+      "size": [
+        432.7937553416041,
+        551.8632355570111
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "reset_cycle",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "reset_cycle"
+          },
+          "link": 42
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            37
+          ]
+        },
+        {
+          "name": "cycle_index",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "title": "FileNames",
+      "properties": {
+        "aux_id": "tenitsky/tenitsky-prompt-cycler-simple",
+        "ver": "e3a6d3a86813391600a0c43dfcc811ae138bf3d5",
+        "Node name for S&R": "PromptCycler"
+      },
+      "widgets_values": [
+        23,
+        "increment",
+        "sequential",
+        false,
+        "bgm_freespin\nbgm_main\nbgm_winlevel_big\nbgm_winlevel_epic\nbgm_winlevel_max\nbgm_winlevel_mega\nbgm_winlevel_superwin\njng_intro_fs\nsfx_anticipation\nsfx_anticipation_start\nsfx_bigwin_coinloop\nsfx_btn_general\nsfx_btn_spin\nsfx_fs_respins\nsfx_multiplier_combine_a\nsfx_multiplier_combine_b\nsfx_multiplier_explosion_a\nsfx_multiplier_explosion_b\nsfx_multiplier_explosion_c\nsfx_multiplier_landing\nsfx_multiplier_reset\nsfx_multiplier_up\nsfx_multiplier_update\nsfx_multiplier_win\nsfx_reel_stop_1\nsfx_reel_stop_2\nsfx_reel_stop_3\nsfx_reel_stop_4\nsfx_reel_stop_5\nsfx_royals_landing\nsfx_scatter_reveal\nsfx_scatter_stop_1\nsfx_scatter_stop_2\nsfx_scatter_stop_3\nsfx_scatter_stop_4\nsfx_scatter_stop_5\nsfx_scatter_win\nsfx_scatter_win_v2\nsfx_superfreespin\nsfx_symbols_landing\nsfx_wild_explode\nsfx_winlevel_end\nsfx_winlevel_nice\nsfx_winlevel_small\nsfx_winlevel_standard\nsfx_winlevel_substantial\nsfx_youwon_panel\ntumble_win_1\ntumble_win_2\ntumble_win_3\ntumble_win_4\ntumble_win_5\n"
+      ]
+    },
+    {
+      "id": 22,
+      "type": "SaveAudioMP3",
+      "pos": [
+        7023.038403249984,
+        347.03877428751366
+      ],
+      "size": [
+        630,
+        240
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 26
+        },
+        {
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": 37
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.21.1",
+        "Node name for S&R": "SaveAudioMP3",
+        "enableTabs": false,
+        "hasSecondTab": false,
+        "secondTabOffset": 80,
+        "secondTabText": "Send Back",
+        "secondTabWidth": 65,
+        "tabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "audio/stable_audio_3",
+        "320k"
+      ]
+    },
+    {
+      "id": 34,
+      "type": "PreviewAny",
+      "pos": [
+        4383.607698591937,
+        694.5340509038408
+      ],
+      "size": [
+        210,
+        166
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.26.2",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": 37,
+      "type": "PrimitiveBoolean",
+      "pos": [
+        3001.527266402726,
+        901.6586728020769
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "BOOLEAN",
+          "type": "BOOLEAN",
+          "links": [
+            40,
+            41,
+            42
+          ]
+        }
+      ],
+      "title": "Cycle Reset",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.26.2",
+        "Node name for S&R": "PrimitiveBoolean"
+      },
+      "widgets_values": [
+        false
+      ]
+    }
+  ],
+  "links": [
+    [
+      19,
+      21,
+      0,
+      17,
+      0,
+      "CLIP"
+    ],
+    [
+      20,
+      19,
+      0,
+      18,
+      0,
+      "LATENT"
+    ],
+    [
+      21,
+      20,
+      2,
+      18,
+      1,
+      "VAE"
+    ],
+    [
+      22,
+      20,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      23,
+      24,
+      0,
+      19,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      24,
+      17,
+      0,
+      19,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      25,
+      23,
+      0,
+      19,
+      3,
+      "LATENT"
+    ],
+    [
+      26,
+      18,
+      0,
+      22,
+      0,
+      "AUDIO"
+    ],
+    [
+      27,
+      21,
+      0,
+      24,
+      0,
+      "CLIP"
+    ],
+    [
+      34,
+      27,
+      0,
+      32,
+      0,
+      "STRING"
+    ],
+    [
+      35,
+      32,
+      0,
+      23,
+      0,
+      "FLOAT"
+    ],
+    [
+      36,
+      26,
+      0,
+      24,
+      1,
+      "STRING"
+    ],
+    [
+      37,
+      33,
+      0,
+      22,
+      1,
+      "STRING"
+    ],
+    [
+      38,
+      26,
+      0,
+      34,
+      0,
+      "STRING"
+    ],
+    [
+      40,
+      37,
+      0,
+      26,
+      0,
+      "BOOLEAN"
+    ],
+    [
+      41,
+      37,
+      0,
+      27,
+      0,
+      "BOOLEAN"
+    ],
+    [
+      42,
+      37,
+      0,
+      33,
+      0,
+      "BOOLEAN"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.2538640416519456,
+      "offset": [
+        -1306.019709394809,
+        576.6402805014698
+      ]
+    },
+    "frontendVersion": "1.45.19"
+  },
+  "version": 0.4
+}
