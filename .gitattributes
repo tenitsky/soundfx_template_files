@@ -1,0 +1,4 @@
+# Shell scripts run on Linux pods: keep LF even when edited on Windows.
+* text=auto
+*.sh text eol=lf
+*.json text eol=lf
