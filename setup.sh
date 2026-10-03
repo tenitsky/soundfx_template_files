@@ -50,6 +50,36 @@ else
   log "ComfyUI already at $COMFYUI_PATH"
 fi
 
+# Repair damage left by an earlier version of this template, which pip-installed
+# stable-audio-tools (and with it torch 2.7.1) into ComfyUI's environment.
+#
+# Volume: the image's venv is created with --system-site-packages and should hold
+# only custom-node extras, never torch. A venv with its own torch or
+# stable_audio_tools is renamed (not deleted); the image's /start.sh then creates a
+# clean one, and ignores folders with ".bak" in the name.
+for venv in "$COMFYUI_PATH"/.venv "$COMFYUI_PATH"/.venv-cu*; do
+  [ -d "$venv" ] || continue
+  case "$venv" in *.bak*) continue ;; esac
+  if compgen -G "$venv/lib/python3*/site-packages/torch" >/dev/null ||
+     compgen -G "$venv/lib/python3*/site-packages/stable_audio_tools" >/dev/null; then
+    backup="$venv.bak-broken-$(date +%Y%m%d%H%M%S)"
+    log "Replacing a damaged ComfyUI venv (it contains its own PyTorch): $venv"
+    log "  moved to $backup; delete it once ComfyUI runs. A clean venv is created at startup."
+    mv "$venv" "$backup" || die "Could not move $venv aside; delete it by hand and restart."
+  fi
+done
+# Container disk: on a first boot the old setup could replace the image's own
+# PyTorch. That disk belongs to the pod, so only a new pod fixes it.
+SYS_PY="$(command -v python3.12 || command -v python3)"
+if [ -f /opt/comfyui-runtime-constraints.txt ]; then
+  want="$(sed -n 's/^torch==//p' /opt/comfyui-runtime-constraints.txt | head -n 1)"
+  have="$("$SYS_PY" -c 'import importlib.metadata as m; print(m.version("torch"))' 2>/dev/null || echo missing)"
+  if [ -n "$want" ] && [ "$have" != "$want" ]; then
+    die "The image's PyTorch was replaced on this pod (found $have, the image ships $want), most likely by an earlier version of this template. Terminate this pod and deploy a new one with the same Network Volume: your files and models are kept."
+  fi
+  log "Image PyTorch intact: $have"
+fi
+
 # Stable Audio 3 support (the T5Gemma text encoder) is part of ComfyUI itself.
 grep -q "SAT5GemmaModel" "$COMFYUI_PATH/comfy/sd.py" 2>/dev/null ||
   die "This ComfyUI has no Stable Audio 3 support. Use runpod/comfyui:1.4.0-comfyuiv0.35.0-cuda12.8 or newer."
