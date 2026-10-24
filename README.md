@@ -1,5 +1,7 @@
 # Stable Audio 3 Sound FX - RunPod ComfyUI template
 
+> 📖 **Step-by-step guide:** [Generating sound effects in bulk with Stable Audio 3](https://tenitsky.com/guides/stable-audio-3-sound-effects/) · more free templates and ComfyUI guides at [tenitsky.com](https://tenitsky.com/)
+
 Generates sound effects and music loops with **Stable Audio 3 Medium Base** in ComfyUI,
 one at a time or as a batch from a list of prompts, lengths and file names.
 
@@ -53,3 +55,15 @@ KSampler to 8 steps, CFG 1.
 
 `JUPYTER_NO_AUTH=1` (the default) runs JupyterLab without a login: anyone with its
 URL gets a shell. For a login, set `JUPYTER_NO_AUTH=0` and `JUPYTER_PASSWORD`.
+
+<!-- tenitsky.com links -->
+## More templates and guides
+
+- 📖 [Z-Image Turbo on RunPod: the quickest way to run it in ComfyUI](https://tenitsky.com/guides/z-image-turbo-runpod/)
+- 📖 [Thousands of AI images for under $0.001 each with Z-Image Turbo](https://tenitsky.com/guides/z-image-thousands-of-images/)
+- 📖 [Prompt Cycler: run a list of prompts in ComfyUI, one per image](https://tenitsky.com/guides/prompt-cycler-comfyui-node/)
+- 📖 [Generating textured 3D models in bulk with TRELLIS 2](https://tenitsky.com/guides/trellis-2-batch-3d-models/)
+- ☁️ New to RunPod? [Introduction to RunPod: running ComfyUI in the cloud](https://tenitsky.com/guides/introduction-to-runpod/)
+- 🎓 New to ComfyUI? [ComfyUI for beginners: build a text-to-image workflow node by node](https://tenitsky.com/guides/comfyui-node-basics-text-to-image/)
+- 🌐 All templates and guides: [tenitsky.com](https://tenitsky.com/)
+- 📺 YouTube: [AI Art Pipeline](https://www.youtube.com/@aiartpipeline)
